@@ -16,7 +16,7 @@ const fmt = d => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month
 const WxIcon = c => (c <= 1 ? Sun : c <= 48 ? Cloud : c >= 71 && c <= 77 ? Snowflake : CloudRain)
 
 export default function Dashboard() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [params, setParams] = useSearchParams()
   const [trips, setTrips] = useState([])
   const [members, setMembers] = useState([])
@@ -78,6 +78,7 @@ export default function Dashboard() {
           <div className="flex flex-wrap gap-3 items-center mt-3 text-ink text-sm">
             <label className="btn btn-ghost !py-1.5"><input type="checkbox" checked={!!trip.is_public} onChange={e => patch({ is_public: e.target.checked })} />Open for others to join</label>
             {trip.is_public && <>
+              {profile?.gender === 'female' && <label className="btn btn-ghost !py-1.5"><input type="checkbox" checked={!!trip.women_only} onChange={e => patch({ women_only: e.target.checked })} />Women only</label>}
               <label className="btn btn-ghost !py-1.5">Max people
                 <input type="number" min={members.length || 1} className="w-14 bg-transparent" defaultValue={trip.max_people} onBlur={e => patch({ max_people: Number(e.target.value) })} /></label>
               <select aria-label="Category" className="input !w-auto !py-1.5" value={trip.category} onChange={e => patch({ category: e.target.value })}>{PLACE_TYPES.map(c => <option key={c}>{c}</option>)}</select>

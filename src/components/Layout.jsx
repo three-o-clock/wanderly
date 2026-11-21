@@ -7,7 +7,7 @@ import { setBackground } from '../lib/theme'
 
 export default function Layout() {
   const nav = useNavigate()
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10)
     supabase.from('trips').select('category,end_date,trip_members!inner(user_id)').eq('trip_members.user_id', user.id).order('start_date')
@@ -25,6 +25,7 @@ export default function Layout() {
           <NavLink to="/explore" className={link}><Compass size={18} />Explore</NavLink>
           <NavLink to="/match" className={link}><Users size={18} />Match &amp; Go</NavLink>
         </nav>
+        <Link to="/welcome" title="Edit profile" className="hidden sm:block text-sm font-semibold hover:underline">{profile?.name}</Link>
         <button className="btn btn-ghost" onClick={async () => { await supabase.auth.signOut(); nav('/') }}>
           <LogOut size={18} />Sign out
         </button>

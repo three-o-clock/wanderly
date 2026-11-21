@@ -65,7 +65,6 @@ export default function Home() {
           </div>
         ))}
       </section>
-      <p className="text-center text-white/90 pb-6 flex items-center justify-center gap-2"><Sparkles size={16} />Built for the Cloud Computing Systems and Applications course</p>
     </div>
   )
 }

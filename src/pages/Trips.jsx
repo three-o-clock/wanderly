@@ -8,10 +8,10 @@ import { buildItinerary, STYLES } from '../lib/itinerary'
 import { PLACE_TYPES } from '../lib/theme'
 import ItineraryEditor from '../components/ItineraryEditor'
 
-const empty = { destination: '', start_date: '', end_date: '', budget: '', category: 'City', is_public: false, max_people: 4 }
+const empty = { destination: '', start_date: '', end_date: '', budget: '', category: 'City', is_public: false, max_people: 4, women_only: false }
 
 export default function Trips() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const nav = useNavigate()
   const loc = useLocation()
   const [trips, setTrips] = useState([])
@@ -47,7 +47,7 @@ export default function Trips() {
   async function save() {
     const { data, error } = await supabase.from('trips').insert({
       destination: geo.label, lat: geo.lat, lng: geo.lng, start_date: f.start_date, end_date: f.end_date,
-      budget: Number(f.budget) || 0, category: f.category, is_public: f.is_public, max_people: Number(f.max_people) || 4, itinerary: opts[pick].days,
+      budget: Number(f.budget) || 0, category: f.category, is_public: f.is_public, women_only: f.is_public && f.women_only, max_people: Number(f.max_people) || 4, itinerary: opts[pick].days,
     }).select().single()
     if (error) return setErr(error.message)
     nav(`/dashboard?trip=${data.id}`)
@@ -66,6 +66,7 @@ export default function Trips() {
           <select aria-label="Category" className="input" value={f.category} onChange={set('category')}>{PLACE_TYPES.map(c => <option key={c}>{c}</option>)}</select>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.is_public} onChange={set('is_public')} />Let others join this trip</label>
           {f.is_public && <label className="block text-sm">Max people<input className="input" type="number" min="2" value={f.max_people} onChange={set('max_people')} /></label>}
+          {f.is_public && profile?.gender === 'female' && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.women_only} onChange={set('women_only')} />Women only</label>}
           {err && <p role="alert" className="text-sm text-red-700">{err}</p>}
           <button disabled={busy} className="btn btn-pink w-full justify-center"><Sparkles size={18} />{busy ? 'Planning with AI…' : 'Show itineraries'}</button>
         </form>
