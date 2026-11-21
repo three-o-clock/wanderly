@@ -8,7 +8,7 @@ import { buildItinerary, STYLES } from '../lib/itinerary'
 import { PLACE_TYPES } from '../lib/theme'
 import ItineraryEditor from '../components/ItineraryEditor'
 
-const empty = { destination: '', start_date: '', end_date: '', budget: '', category: 'City', is_public: false, max_people: 4, women_only: false }
+const empty = { destination: '', start_date: '', end_date: '', budget: '', category: 'City', is_public: false, max_people: 4, women_only: false, pace: 'Balanced' }
 
 export default function Trips() {
   const { user, profile } = useAuth()
@@ -31,16 +31,18 @@ export default function Trips() {
     e.preventDefault(); setErr(null); setBusy(true)
     if (f.end_date < f.start_date) { setBusy(false); return setErr('The end date must be after the start date.') }
     if ((new Date(f.end_date) - new Date(f.start_date)) / 864e5 > 30) { setBusy(false); return setErr('Trips can be up to 30 days long.') }
-    const g = await geocode(f.destination).catch(() => null)
+    const pace = STYLES.find(x => x.name === f.pace) || STYLES[1]
+    // the place lookup and the AI draft run at the same time
+    const [g, ai] = await Promise.all([
+      geocode(f.destination).catch(() => null),
+      supabase.functions.invoke('plan-trip', { body: { destination: f.destination, start_date: f.start_date, end_date: f.end_date, budget: Number(f.budget), category: f.category, pace: pace.name } })
+        .catch(() => ({ error: true })),
+    ])
     if (!g) { setBusy(false); return setErr("We couldn't find that place. Try a city name, like Lisbon or Goa.") }
     setGeo(g)
-    const { data, error } = await supabase.functions.invoke('plan-trip', {
-      body: { destination: g.label, start_date: f.start_date, end_date: f.end_date, budget: Number(f.budget), category: f.category } })
-    if (!error && data?.options?.length) {
-      setOpts(data.options.map((o, i) => ({ ...o, perDay: STYLES[i]?.perDay ?? 3 }))); setSource('ai')
-    } else {
-      setOpts(STYLES.map((s, i) => ({ ...s, days: buildItinerary(g.label, f.start_date, f.end_date, s.perDay, i * 2) }))); setSource('template')
-    }
+    const days = !ai.error && ai.data?.options?.[0]?.days
+    if (days?.length) { setOpts([{ name: pace.name, perDay: pace.perDay, days }]); setSource('ai') }
+    else { setOpts([{ ...pace, days: buildItinerary(g.label, f.start_date, f.end_date, pace.perDay, 0) }]); setSource('template') }
     setPick(0); setBusy(false)
   }
 
@@ -64,18 +66,19 @@ export default function Trips() {
           <label className="block text-sm">Ends<input className="input" type="date" required value={f.end_date} onChange={set('end_date')} /></label>
           <input className="input" type="number" min="0" required placeholder="Total budget (₹)" value={f.budget} onChange={set('budget')} />
           <select aria-label="Category" className="input" value={f.category} onChange={set('category')}>{PLACE_TYPES.map(c => <option key={c}>{c}</option>)}</select>
+          <div role="group" aria-label="Pace" className="flex gap-2">
+            {STYLES.map(x => <button type="button" key={x.name} aria-pressed={f.pace === x.name} onClick={() => setF({ ...f, pace: x.name })}
+              className={`btn !py-1.5 text-sm flex-1 justify-center ${f.pace === x.name ? 'btn-pink' : 'btn-ghost'}`}>{x.name}</button>)}
+          </div>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.is_public} onChange={set('is_public')} />Let others join this trip</label>
           {f.is_public && <label className="block text-sm">Max people<input className="input" type="number" min="2" value={f.max_people} onChange={set('max_people')} /></label>}
           {f.is_public && profile?.gender === 'female' && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.women_only} onChange={set('women_only')} />Women only</label>}
           {err && <p role="alert" className="text-sm text-red-700">{err}</p>}
-          <button disabled={busy} className="btn btn-pink w-full justify-center"><Sparkles size={18} />{busy ? 'Planning with AI…' : 'Show itineraries'}</button>
+          <button disabled={busy} className="btn btn-pink w-full justify-center"><Sparkles size={18} />{busy ? 'Planning with AI…' : 'Draft my itinerary'}</button>
         </form>
 
         <div className="md:col-span-2 glass p-6">
-          {!opts ? <p className="opacity-70">Your itinerary options will show up here. Pick one, edit anything you like, then save the trip.</p> : <>
-            <div className="flex gap-2 mb-1" role="tablist">
-              {opts.map((o, i) => <button key={o.name} role="tab" aria-selected={pick === i} onClick={() => setPick(i)} className={`btn ${pick === i ? 'btn-pink' : 'btn-ghost'}`}>{o.name}</button>)}
-            </div>
+          {!opts ? <p className="opacity-70">Your itinerary will show up here. Edit anything you like, then save the trip.</p> : <>
             <p className="text-sm opacity-70 mb-4">{geo.label} · about ₹{perDay.toLocaleString('en-IN')} per day · {opts[pick].perDay} activities a day</p>
             <p className="text-xs mb-3">{source === 'ai' ? 'Drafted by Gemini. Edit anything below.' : 'The AI planner is busy or unavailable, so this is a basic plan. Edit anything below.'}</p>
             <ItineraryEditor value={opts[pick].days} onSave={d => setOpts(opts.map((o, i) => i === pick ? { ...o, days: d } : o))} />
